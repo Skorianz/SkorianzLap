@@ -1,0 +1,132 @@
+﻿@page "/orders"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore;
+@using SkorianzLap.Components.Layout
+@using SkorianzLap.Data
+@using SkorianzLap.Data.Models
+@using SkorianzLap.Data.Models.Shop
+@using System.Security.Claims
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+
+<PageTitle>Meine Bestellungen</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        @if (Spinner == true)
+        {
+            <Spinner />
+        }
+        else
+        {
+
+            <div class="container">
+                <div class="d-flex gap-2 mb-4" style="justify-content: space-between;">
+                    <h3>Meine Bestellungen</h3>
+                </div>
+
+                <hr />
+
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Bestellnummer</th>
+                            <th scope="col">Produkte</th>
+                            <th scope="col">Bestelldatum</th>
+                            <th scope="col">Zahlungseingang</th>
+                            <th scope="col">Preis</th>
+                            <th scope="col" class="design-last-table-col">@String.Empty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var order in Orders)
+                        {
+                            <tr>
+                                <th scope="row">@order.Id</th>
+                                <td>@(string.Join("<br>", OrderLines.Where(x => x.Order.Id == order.Id).Select(x => x.Product.Name + $" ({x.Quantity}x {Convert.ToDouble(x.Product.Price).ToString("0.00")} €)").ToList()))</td>
+                                <td>@(order.OrderCompletionDate != null ? ((DateTime)order.OrderCompletionDate).ToString("dd.MM.yyyy HH:mm") : String.Empty)</td>
+                                <td>@(order.PaymentCompletionDate != null ? ((DateTime)order.PaymentCompletionDate).ToString("dd.MM.yyyy HH:mm") : "nicht bezahlt")</td>
+                                <td>@(Convert.ToDouble(OrderLines.Where(x => x.Order.Id == order.Id).Sum(x => x.Product.Price * x.Quantity).ToString("0.00"))) €</td>
+                                <td class="p-1">
+                                    <a class="btn btn-sm btn-outline-secondary" type="button" href="/order/view/@order.Id"><i class="fa fa-eye" aria-hidden="true"></i></a>
+                                </td>
+                            </tr>
+
+                        }
+                    </tbody>
+                </table>
+
+                <TablePagination TotalCount="Orders.Count" PageCount="PageCount" PageHasChangedEvent="PageHasChangedEvent" />
+            </div>
+
+        }
+    </Authorized>
+    <NotAuthorized>
+        <AuthErrorScreen />
+    </NotAuthorized>
+</AuthorizeView>
+
+
+
+@code {
+    private List<Order> Orders { get; set; } = new();
+    private List<OrderLine> OrderLines { get; set; } = new();
+
+    private ApplicationUser ApplicationUser;
+
+    private bool Spinner = true;
+
+    private int CurrentPage = 1;
+    private int PageCount = 10;
+
+    private async Task LoadOrders()
+    {
+        Spinner = true;
+        StateHasChanged();
+
+        Orders = await DbContext.Orders.Where(x => x.ApplicationUser.Id == ApplicationUser.Id).Skip((CurrentPage - 1) * PageCount).Take(PageCount).ToListAsync();
+        OrderLines = await DbContext.OrderLines.Where(x => Orders.Select(z => z.Id).Contains(x.Order.Id)).Skip((CurrentPage - 1) * PageCount).Take(PageCount).ToListAsync();
+
+        Spinner = false;
+        StateHasChanged();
+    }
+
+    private async Task PageHasChangedEvent(int page)
+    {
+        CurrentPage = page;
+        await LoadOrders();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            string userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            ApplicationUser = await UserManager.FindByIdAsync(userId);
+        }
+        else
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(firstRender)
+        {
+            await LoadOrders();
+
+            Spinner = false;
+            StateHasChanged();
+        }
+    }
+}

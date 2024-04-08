@@ -1,0 +1,135 @@
+﻿@page "/product/buy/{ProductIdParameter}"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore;
+@using SkorianzLap.Components.Layout
+@using SkorianzLap.Data
+@using SkorianzLap.Data.Models
+@using SkorianzLap.Data.Models.Shop
+@using System.Security.Claims
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+
+<AuthorizeView>
+    <Authorized>
+        @if (Spinner == true)
+        {
+            <Spinner />
+        }
+        else if (Product != null)
+        {
+            <div class="container">
+                <h5>@Product.Name</h5>
+                <p>@Product.Description</p>
+                <h6><b>Preis:</b> @(Convert.ToDouble(Product.Price).ToString("0.00")) €</h6>
+
+                <div class="form-group form-floating">
+                    <InputNumber @bind-Value="Quantity" class="form-control" autocomplete="off" aria-required="true" step="1" max="3" min="1" placeholder="Wählen Sie die Prduktmenge" />
+                    <label for="name" class="form-label">Menge <span class="text-danger">*</span></label>
+                </div>
+
+                <div>
+                    <button class="btn btn-success" type="button" @onclick="BuyProduct">Jetzt kaufen</button>
+                    <a class="btn btn-outline-secondary" href="/shop">Abbrechen</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <p>Produkt nicht gefunden</p>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <AuthErrorScreen Message="Melden Sie sich an um ein Produkt zu kaufen!" />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public string ProductIdParameter { get; set; }
+
+    private ApplicationUser ApplicationUser;
+
+    private Product Product;
+
+    private DateTime OrderCreationDate = DateTime.UtcNow;
+
+    private int Quantity { get; set; } = 1;
+
+    private bool Spinner = true;
+
+    private async Task LoadProduct()
+    {
+        Spinner = true;
+        StateHasChanged();
+
+        var productId = Convert.ToInt64(ProductIdParameter);
+        Product = await DbContext.Products.FindAsync(productId);
+
+        Spinner = false;
+        StateHasChanged();
+    }
+
+    private async Task BuyProduct()
+    {
+        Spinner = true;
+        StateHasChanged();
+
+        var order = new Order
+        {
+            ApplicationUser = ApplicationUser,
+            OrderCreationDate = OrderCreationDate,
+            OrderCompletionDate = DateTime.UtcNow,
+            PaymentCompletionDate = DateTime.UtcNow,
+            InShoppingCart = false
+        };
+
+        await DbContext.Orders.AddAsync(order);
+        await DbContext.SaveChangesAsync();
+
+        var orderLine = new OrderLine
+        {
+            Product = Product,
+            Order = order,
+            Quantity = Quantity,
+        };
+
+        await DbContext.OrderLines.AddAsync(orderLine);
+        await DbContext.SaveChangesAsync();
+
+        NavigationManager.NavigateTo("/orders", true);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            string userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            ApplicationUser = await UserManager.FindByIdAsync(userId);
+        }
+        // else
+        // {
+        //     NavigationManager.NavigateTo("/");
+        // }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(firstRender)
+        {
+            await LoadProduct();
+
+            Spinner = false;
+            StateHasChanged();
+        }
+    }
+
+}

@@ -1,0 +1,91 @@
+﻿@page "/shop"
+@rendermode InteractiveServer
+
+@using Microsoft.EntityFrameworkCore;
+@using SkorianzLap.Components.Layout
+@using SkorianzLap.Data
+@using SkorianzLap.Data.Models.Shop
+
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Shop</PageTitle>
+
+@if(Spinner == true)
+{
+    <Spinner />
+}
+else
+{
+    <div class="container">
+        <h3>Shop</h3>
+
+        <hr />
+
+        <div class="shop-item-parent">
+            @foreach (var product in Products)
+            {
+                <div class="shop-item">
+                    <div class="card text-center">
+                        <h5 class="card-header p-3 bg-dark text-white">
+                            <b>@product.Name</b>
+                        </h5>
+                        <div class="card-body">
+                            <div class="shop-item-body">
+                                <div class="shop-item-info">
+                                    <p class="card-text">@product.ShortDescription</p>
+                                </div>
+                                <div>
+                                    <h6 class="card-title"><b>Preis:</b> @(Convert.ToDouble(product.Price).ToString("0.00")) €</h6>
+                                    <a class="btn btn-sm btn-success" href="/product/buy/@product.Id">Kaufen</a>
+                                    <a class="btn btn-sm btn-outline-secondary" href="/product/view/@product.Id">Produktdetails</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
+        </div>
+
+        <TablePagination TotalCount="Products.Count" PageCount="PageCount" PageHasChangedEvent="PageHasChangedEvent" />
+    </div>
+
+}
+
+@code {
+
+    private List<Product> Products { get; set; } = new();
+
+    private bool Spinner = true;
+
+    private int CurrentPage = 1;
+    private int PageCount = 10;
+
+    private async Task LoadProducts()
+    {
+        Spinner = true;
+        StateHasChanged();
+
+        Products = await DbContext.Products.Where(x => x.IsEquipment == false && x.IsActive == true && x.IsDeleted == false).Skip((CurrentPage - 1) * PageCount).Take(PageCount).ToListAsync();
+
+        Spinner = false;
+        StateHasChanged();
+    }
+
+    private async Task PageHasChangedEvent(int page)
+    {
+        CurrentPage = page;
+        await LoadProducts();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadProducts();
+
+            Spinner = false;
+            StateHasChanged();
+        }
+    }
+}

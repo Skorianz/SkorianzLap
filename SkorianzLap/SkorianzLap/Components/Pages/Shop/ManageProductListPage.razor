@@ -1,0 +1,112 @@
+﻿@page "/products/manage"
+@rendermode InteractiveServer
+
+@using Microsoft.EntityFrameworkCore;
+@using SkorianzLap.Components.Layout
+@using SkorianzLap.Data
+@using SkorianzLap.Data.Models.Shop
+
+@inject ApplicationDbContext DbContext
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Produkte verwalten</PageTitle>
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        @if (Spinner == true)
+        {
+            <Spinner />
+        }
+        else
+        {
+            <div class="container">
+                <div class="d-flex gap-2 mb-4" style="justify-content: space-between;">
+                    <h3 class="m-0">Produkte verwalten</h3>
+                    <a class="btn btn-success" type="button" href="/product/new">Produkt hinzufügen</a>
+                </div>
+                <hr />
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th scope="col">Produktnummer</th>
+                            <th scope="col">Name</th>
+                            <th scope="col">Preis</th>
+                            <th scope="col" class="design-last-table-col">@String.Empty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var product in Products)
+                        {
+                            <tr>
+                                <th scope="row">@product.Id</th>
+                                <td>@product.Name</td>
+                                <td>@(Convert.ToDouble(product.Price).ToString("0.00")) €</td>
+                                <td class="p-1">
+                                    <a class="btn btn-sm btn-outline-secondary" type="button" href="/product/edit/@product.Id"><i class="fa fa-cog" aria-hidden="true"></i></a>
+                                </td>
+                            </tr>
+
+                        }
+                    </tbody>
+                </table>
+
+                <TablePagination TotalCount="Products.Count" PageCount="PageCount" PageHasChangedEvent="PageHasChangedEvent" />
+            </div>
+
+        }
+    </Authorized>
+    <NotAuthorized>
+        <p>No access!</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+
+
+@code {
+    private List<Product> Products { get; set; } = new();
+
+    private bool Spinner = true;
+
+    private int CurrentPage = 1;
+    private int PageCount = 10;
+
+    private async Task LoadProducts()
+    {
+        Spinner = true;
+        StateHasChanged();
+
+        Products = await DbContext.Products.Where(x => x.IsDeleted == false).Skip((CurrentPage - 1) * PageCount).Take(PageCount).ToListAsync();
+
+        Spinner = false;
+        StateHasChanged();
+    } 
+
+    private async Task PageHasChangedEvent(int page)
+    {
+        CurrentPage = page;
+        await LoadProducts();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadProducts();
+
+            Spinner = false;
+            StateHasChanged();
+        }
+    }
+}

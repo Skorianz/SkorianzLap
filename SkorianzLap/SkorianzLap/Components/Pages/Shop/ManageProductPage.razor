@@ -1,0 +1,66 @@
+﻿@page "/product/edit/{ProductIdParameter}"
+@page "/product/new"
+@rendermode InteractiveServer
+
+@using SkorianzLap.Components.Layout
+
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+
+<PageTitle>Produkt verwalten</PageTitle>
+
+<AuthorizeView Roles="Admin">
+    <Authorized>
+        @if (Spinner == true)
+        {
+            <Spinner />
+        }
+
+        <div class="container @(Spinner == true ? "hidden" : String.Empty)">
+            <ManageProductForm @ref="ManageProductForm" />
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <p>No access!</p>
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    [Parameter]
+    public string? ProductIdParameter { get; set; }
+
+    private bool Spinner = true;
+
+    private ManageProductForm ManageProductForm { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (!user.Identity.IsAuthenticated)
+        {
+            NavigationManager.NavigateTo("/");
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(firstRender == true)
+        {
+            if (ProductIdParameter != null)
+            {
+                var productId = Convert.ToInt64(ProductIdParameter);
+                await ManageProductForm.LoadProduct(productId);
+            }
+            else
+            {
+                await ManageProductForm.NewProduct();
+            }
+
+            Spinner = false;
+            StateHasChanged();
+        }
+    }
+}

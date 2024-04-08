@@ -1,0 +1,113 @@
+﻿@page "/order/view/{OrderIdParameter}"
+
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore;
+@using SkorianzLap.Components.Layout
+@using SkorianzLap.Data
+@using SkorianzLap.Data.Models
+@using SkorianzLap.Data.Models.Shop
+@using System.Security.Claims
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Bestellung ansehen</PageTitle>
+
+@if (Spinner == true)
+{
+    <Spinner />
+}
+else if (Order != null)
+{
+    <div class="container">
+
+        <div class="mb-4">
+            <a class="btn btn-outline-secondary" href="/orders">Zurück</a>
+        </div>
+
+        <hr />
+
+        <h4 class="fw-bold mb-3">Bestellnummer: #@Order.Id</h4>
+
+        <div class="form-group">
+            <label class="fw-bolder">Bestellung erstellt</label>
+            <p>@(Order.OrderCreationDate != null ? ((DateTime)Order.OrderCreationDate).ToString("dd.MM.yyyy HH:mm") : "nicht erstellt")</p>
+        </div>
+
+        <div class="form-group">
+            <label class="fw-bolder">Bestellung abgeschlossen</label>
+            <p>@(Order.OrderCompletionDate != null ? ((DateTime)Order.OrderCompletionDate).ToString("dd.MM.yyyy HH:mm") : "nicht abgeschlossen")</p>
+        </div>
+
+        <div class="form-group">
+            <label class="fw-bolder">Zahlungseingang</label>
+            <p>@(Order.PaymentCompletionDate != null ? ((DateTime)Order.PaymentCompletionDate).ToString("dd.MM.yyyy HH:mm") : "nicht bezahlt")</p>
+        </div>
+
+        <div class="form-group">
+            <label class="fw-bolder">Produkte</label>
+            <p>@(string.Join("<br>", OrderLines.Where(x => x.Order.Id == Order.Id).Select(x => x.Product.Name + $" ({x.Quantity}x {Convert.ToDouble(x.Product.Price).ToString("0.00")} €)").ToList()))</p>
+        </div>
+
+        <h6><b>Gesamtbetrag:</b> @(Convert.ToDouble(OrderLines.Where(x => x.Order.Id == Order.Id).Sum(x => x.Product.Price * x.Quantity).ToString("0.00"))) €</h6>
+
+        
+    </div>
+}
+else
+{
+    <p>Bestellung nicht gefunden</p>
+}
+
+@code {
+    [Parameter]
+    public string OrderIdParameter { get; set; }
+
+    private ApplicationUser ApplicationUser;
+
+    private Order Order;
+    private List<OrderLine> OrderLines = new();
+
+    private bool Spinner = true;
+
+    private async Task LoadOrder()
+    {
+        Spinner = true;
+        StateHasChanged();
+
+        var orderId = Convert.ToInt64(OrderIdParameter);
+        Order = await DbContext.Orders.FindAsync(orderId);
+        OrderLines = await DbContext.OrderLines.Where(x => x.Order.Id == orderId).ToListAsync();
+
+        Spinner = false;
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            string userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            ApplicationUser = await UserManager.FindByIdAsync(userId);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadOrder();
+
+            Spinner = false;
+            StateHasChanged();
+        }
+    }
+
+}

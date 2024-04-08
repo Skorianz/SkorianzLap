@@ -1,0 +1,13 @@
+﻿<div class="container">
+    <h3>@Message</h3>
+    <div>
+        <p>Sie sind momentan abgemeldet!</p>
+        <a class="btn btn-outline-success" href="Account/Login">Anmelden</a>
+        <a class="btn btn-outline-secondary" href="Account/Register">Registrieren</a>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Message { get; set; } = "Kein Zugriff!";
+}

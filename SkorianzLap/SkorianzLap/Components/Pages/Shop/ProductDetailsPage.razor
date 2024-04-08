@@ -1,0 +1,85 @@
+﻿@page "/product/view/{ProductIdParameter}"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore;
+@using SkorianzLap.Components.Layout
+@using SkorianzLap.Data
+@using SkorianzLap.Data.Models
+@using SkorianzLap.Data.Models.Shop
+@using System.Security.Claims
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject NavigationManager NavigationManager
+
+<PageTitle>Produkt ansehen</PageTitle>
+
+@if (Spinner == true)
+{
+    <Spinner />
+}
+else if (Product != null)
+{
+    <div class="container">
+        <h5>@Product.Name</h5>
+        <p>@Product.Description</p>
+        <h6><b>Preis:</b> @(Convert.ToDouble(Product.Price).ToString("0.00")) €</h6>
+
+        <div>
+            <a class="btn btn-outline-secondary" href="/shop">Zurück</a>
+        </div>
+    </div>
+}
+else
+{
+    <p>Produkt nicht gefunden</p>
+}
+
+@code {
+    [Parameter]
+    public string ProductIdParameter { get; set; }
+
+    private ApplicationUser ApplicationUser;
+
+    private Product Product;
+
+    private bool Spinner = true;
+
+    private async Task LoadProduct()
+    {
+        Spinner = true;
+        StateHasChanged();
+
+        var productId = Convert.ToInt64(ProductIdParameter);
+        Product = await DbContext.Products.FindAsync(productId);
+
+        Spinner = false;
+        StateHasChanged();
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+
+        if (user.Identity.IsAuthenticated)
+        {
+            string userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+            ApplicationUser = await UserManager.FindByIdAsync(userId);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadProduct();
+
+            Spinner = false;
+            StateHasChanged();
+        }
+    }
+
+}

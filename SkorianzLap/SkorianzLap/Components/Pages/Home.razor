@@ -1,0 +1,108 @@
+﻿@page "/"
+@rendermode InteractiveServer
+
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore;
+@using SkorianzLap.Components.Layout
+@using SkorianzLap.Data
+@using SkorianzLap.Data.Models
+@using System.Security.Claims
+
+@inject ApplicationDbContext DbContext
+@inject UserManager<ApplicationUser> UserManager
+@inject AuthenticationStateProvider AuthenticationStateProvider
+
+<PageTitle>Startseite</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        @if (Spinner == true)
+        {
+            <Spinner />
+        }
+        else
+        {
+            <div class="container">
+                <div class="row">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h2>Willkommen <span>@context.User.Identity?.Name</span>!</h2>
+                                <h5 class="m-0">Sie sind nun im Webshop angemeldet.</h5>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="row mt-5">
+                    <div class="col-12 col-sm-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4>@OrdersCount</h4>
+                                <p>Bestellungen Insgesamt</p>
+                                <a href="/orders" class="btn btn-primary">Meine Bestellungen</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4>0</h4>
+                                <p>Bestellungen der letzten 30 Tage</p>
+                                <a href="/orders" class="btn btn-primary">Meine Bestellungen</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-12 col-sm-4">
+                        <div class="card">
+                            <div class="card-body">
+                                <h4>@ShopProductsCount</h4>
+                                <p>Produkte im Angebot</p>
+                                <a href="/shop" class="btn btn-primary">Zum Shop</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </Authorized>
+    <NotAuthorized>
+        <AuthErrorScreen Message="Willkommen im Webshop!" />
+    </NotAuthorized>
+</AuthorizeView>
+
+@code {
+    private bool Spinner = true;
+    private ApplicationUser ApplicationUser;
+
+    private int OrdersCount { get; set; } = 0;
+    private int OrdersCountMonth { get; set; } = 0;
+    private int ShopProductsCount { get; set; } = 0;
+
+    private async Task LoadStatistics()
+    {
+        OrdersCount = await DbContext.Orders.Where(x => x.ApplicationUser.Id == ApplicationUser.Id && x.OrderCompletionDate != null).CountAsync();
+        OrdersCountMonth = await DbContext.Orders.Where(x => x.ApplicationUser.Id == ApplicationUser.Id && x.OrderCompletionDate != null && x.OrderCompletionDate >= DateTime.UtcNow.AddDays(-30)).CountAsync();
+        ShopProductsCount = await DbContext.Products.Where(x => x.IsActive == true && x.IsDeleted == false).CountAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if(firstRender)
+        {
+            var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+
+            if (user.Identity.IsAuthenticated)
+            {
+                string userId = user.FindFirst(c => c.Type == ClaimTypes.NameIdentifier)?.Value;
+                ApplicationUser = await UserManager.FindByIdAsync(userId);
+
+                await LoadStatistics();
+            }
+
+            Spinner = false;
+            StateHasChanged();
+        }
+    }
+
+}

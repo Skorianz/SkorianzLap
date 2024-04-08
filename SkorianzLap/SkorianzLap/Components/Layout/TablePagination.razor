@@ -1,0 +1,62 @@
+﻿@if (TotalCount > 0)
+{
+    <nav class="mt-3">
+        <ul class="pagination">
+            <li class="page-item @(CurrentPage == 1 ? "disabled" : String.Empty)"><button class="page-link" @onclick="PreviousPage">Zurück</button></li>
+            @for (var i = 1; i <= (TotalCount / PageCount) + 1; i++)
+            {
+                var pageCount = i;
+                <li class="page-item @(CurrentPage == i ? "active" : String.Empty)"><button class="page-link" @onclick="() => ChangePage(pageCount)">@pageCount</button></li>
+            }
+            <li class="page-item @(CurrentPage == (TotalCount / PageCount) + 1 ? "disabled" : String.Empty)"><button class="page-link " @onclick="NextPage">Weiter</button></li>
+        </ul>
+    </nav>
+}
+
+@code {
+    [Parameter]
+    public int TotalCount { get; set; }
+
+    [Parameter]
+    public int PageCount { get; set; } = 10;
+
+    private int CurrentPage { get; set; } = 1;
+
+    [Parameter]
+    public EventCallback<int> PageHasChangedEvent { get; set; }
+
+    public int GetCurrentPage()
+    {
+        return CurrentPage;
+    }
+
+    private void PreviousPage()
+    {
+        if (CurrentPage > 1)
+        {
+            CurrentPage--;
+            PageHasChangedEvent.InvokeAsync(CurrentPage);
+        }
+    }
+
+    private void NextPage()
+    {
+        if (CurrentPage < (TotalCount / PageCount) + 1)
+        {
+            CurrentPage++;
+            PageHasChangedEvent.InvokeAsync(CurrentPage);
+        }
+    }
+
+    private void ChangePage(int page)
+    {
+        CurrentPage = page;
+        PageHasChangedEvent.InvokeAsync(CurrentPage);
+    }
+
+    public void Update()
+    {
+        StateHasChanged();
+    }
+
+}
